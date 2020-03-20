@@ -1,6 +1,6 @@
 # mge55101-20195104
 
-**Introduction to Deep Learning Repository**
+**Introduction to Deep Learning Repository**  
 Name : Chanmin Park  
 Student No : 20195104  
 School : computer engineering  
