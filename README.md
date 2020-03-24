@@ -6,9 +6,7 @@ Student No : 20195104
 School : computer engineering  
 E-mail : pcmin03@unist.ac.kr  
 
-# Project Name   
-## medical image reconstruction using Deep learning
-======  
+# Project Name : medical image reconstruction using Deep learning
 
 ### Introduction  
 In medical images, MRI, CT, ultrasound, and cell are widely used. Using this image , many people were developing various method such as a finding cancer that doctors cannot find using cancer, counting the number of cells, and segmentating only necessary parts of a medical image, etc.    
