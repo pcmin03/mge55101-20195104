@@ -21,6 +21,7 @@ In particular, in this semester, I would like to apply reconstruction using deep
 MRI image restoration has been studied a lot before. previously,the MRI was reconsturcted using the [Nyquist–Shannon Sampling Therorem](https://en.wikipedia.org/wiki/Nyquist%E2%80%93Shannon_sampling_theorem). recently, The state of the art method was the [compression sensing method](https://en.wikipedia.org/wiki/Compressed_sensing), machine learning method like [sparse coding](https://en.wikipedia.org/wiki/Convolutional_Sparse_Coding) However, in compress sensing method, there was a disadvantage in that the time to acquire the image and the required signal were randomly selected. To solve this problem, people recently tried to solve the problem with deep learning, and representatively, they improved the image using CNN, GAN, etc.   furthermore, in dynamic MRI dataset such as cardiac dataset recently are using RNN and 
 
 ![RefineGAN](/images/Overview.png)
+<img src="/path/Heart-direct-vs-iterative-reconstruction.png" width="40%" height="30%" title="cardiac image"></img>
 
 ***plan
 This semaster, I will plan the during two month.  
