@@ -39,15 +39,16 @@ Example Cardiacdataset
 ### Evaluation Matrix
 The mostly ill-posed problem has used to evaluate two matrices each of Structural Similarity Index(SSIM), Peak signal-to-noise ratio(PSMR).
 SSIM matrix usually compares brightness, structure, and contrast compare to the original image to result from an image. So it shows the bottom equation.   
-$$
-<a href="https://www.codecogs.com/eqnedit.php?latex=SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" title="SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}" /></a>
+
+<!-- <a href="https://www.codecogs.com/eqnedit.php?latex=SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" title="SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}" /></a> -->
 
 - <img src="https://render.githubusercontent.com/render/math?math=SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}" >
-$$  
+
 Furthermore, PSNR is mainly used to evaluate image quality loss information in video or video loss compression. Matrix is easy to compare two images, it uses MeanSqure error(MSE) divide 'RMSE'.  
-$$
-<a href="https://www.codecogs.com/eqnedit.php?latex=SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" title="SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}" /></a>
+
+<!-- <a href="https://www.codecogs.com/eqnedit.php?latex=SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" title="SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}" /></a> -->
+
 - <img src="https://render.githubusercontent.com/render/math?math=PSNR = 10log_{10}(\frac{MAX^2_{I}}{MSE}) = 20log_{10}(\frac{MAX_{I}}{\sqrt{MSE}}})" >
-$$  
+
 lastly, I'll use two martix to compare state-of-the-art dynamic Cardiac paper name "Dynamic MRI Reconstruction with Motion-Guided Network"(link : https://openreview.net/pdf?id=Bke-CJtel4).
 ![My_networkplan](/images/network.png)  
