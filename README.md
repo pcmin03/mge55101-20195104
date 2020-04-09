@@ -31,6 +31,20 @@ The detailed plan is attached to the picture chart below.
 ![Plan](/images/Picture3.png)  
 _Detail Plan_
 
-### Evaluation
+### Data preparation 
+Usually, many MRI reconstruction uses static datasets such as brain image, Leg bone. however the cardiac image is a dynamic dataset, it is hard to reconstruct. In this project. I'll use the cardiac dataset of [Second Annual Data Science Bowl](https://www.kaggle.com/c/second-annual-data-science-bowl).  it is consists of DICOM dataset which has 192 X 256 X 30 stack image. There has a total of 100 patients which has 30 stack image. this semenster, I using 20 patients to use the training dataset, 4 patients for validation dataset, last 8 patients to test dataset. So the total training dataset is 600(20X30)images, validation is 120(4X40)images, and the test is 240(8X30) images.
+![Example Cardiacdataset](/images/IM-9523-00012.png)(/images/IM-9930-0026.png)
+Example Cardiacdataset
 
-### 
+### Evaluation Matrix
+The mostly ill-posed problem has used to evaluate two matrices each of Structural Similarity Index(SSIM), Peak signal-to-noise ratio(PSMR).
+SSIM matrix usually compares brightness, structure, and contrast compare to the original image to result from an image. So it shows the bottom equation. 
+\\
+SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}
+\\
+Furthermore, PSNR is mainly used to evaluate image quality loss information in video or video loss compression. Matrix is easy to compare two images, it uses MeanSqure error(MSE) divide 'RMSE'.
+\\
+PSNR = 10log_{10}(\frac{MAX^2_{I}}{MSE}) = 20log_{10}(\frac{MAX_{I}}{\sqrt{MSE}}})
+\\
+lastly, I'll use two martix to compare state-of-the-art dynamic Cardiac paper name "Dynamic MRI Reconstruction with Motion-Guided Network"(line : https://openreview.net/pdf?id=Bke-CJtel4).
+![My_networkplan](/images/network.png)  
