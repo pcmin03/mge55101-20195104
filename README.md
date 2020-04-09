@@ -30,3 +30,6 @@ The detailed plan is attached to the picture chart below.
 
 ![Plan](/images/Picture3.png)  
 _Detail Plan_
+
+
+### 
