@@ -42,7 +42,7 @@ SSIM matrix usually compares brightness, structure, and contrast compare to the 
 $$
 <a href="https://www.codecogs.com/eqnedit.php?latex=SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?SSIM(x,y)&space;=&space;\frac{(2\mu_{x}\mu_{y}&plus;c_{1})(2\sigma_{xy}&plus;c_{2})}{(2\mu_{x}^2&plus;\mu_{y}^2&plus;c_{2})}" title="SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}" /></a>
 
-SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}  
+- <img src="https://latex.codecogs.com/gif.latex?SSIM(x,y) = \frac{(2\mu_{x}\mu_{y}+c_{1})(2\sigma_{xy}+c_{2})}{(2\mu_{x}^2+\mu_{y}^2+c_{2})}" /> 
 $$  
 Furthermore, PSNR is mainly used to evaluate image quality loss information in video or video loss compression. Matrix is easy to compare two images, it uses MeanSqure error(MSE) divide 'RMSE'.  
 $$
