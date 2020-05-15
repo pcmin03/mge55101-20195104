@@ -11,8 +11,8 @@ class Logger(object):
     def __init__(self, log_dir,batch_size,delete=False,num='0',name='weight'):
         self.log_dir = log_dir
         self.batch_size =batch_size
-        self.board_dir = self.log_dir+name+'board/'
-        merge_path = './merge_path/board'+name+'/'+name+str(num)+'/'
+        
+        merge_path = '../merge_path/board'+name+'/'+name+str(num)+'/'
         if not os.path.exists(self.log_dir):
             print('----- Make_save_Dir-------------')
             os.makedirs(self.log_dir)
@@ -41,11 +41,6 @@ class Logger(object):
             elif 'loss' in scalar:
                 self.writer.add_scalar('loss/'+str(scalar),scalar_dict[scalar],step)
             
-    def summary_3dimages(self,images_dict,step):
-        ### list of stack_images ###
-        for i, img in enumerate(images_dict):
-            self.writer.add_images(str(img),images_dict[img],step)
-
     def changedir(self,changedir='result',delete=True):
         
         save_dir = self.log_dir + changedir +'/'
@@ -178,13 +173,14 @@ class Logger(object):
             project = np.max(final,axis=2)
             final_dict.update([('final'+str(i),final),('project'+str(i),project)])
         self.save_images(final_dict,0)
-    def save_csv_file(self,Class,name):
+    def save_csv_file(self,Class,name,class_list):
         import pandas
         # for num,name in enumerate(Class):
-        df = pd.DataFrame(Class,columns =['back','body','dend','axon'])
+        df = pd.DataFrame(Class,columns =class_list)
         df.to_csv(self.log_dir +str(name)+'.csv')
-        
-        
+    
+    def convert_to_list(self,dictionary):
+        return dictionary.keys(),dictionary.values()
         
 
 

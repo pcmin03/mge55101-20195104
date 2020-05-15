@@ -3,7 +3,7 @@ import numpy as np
 from glob import glob
 from natsort import natsorted
 
-from main_reconstruction_torch_uitls import *
+from utils import *
 from sklearn.model_selection import KFold
 
 #################################################################
@@ -11,13 +11,14 @@ from sklearn.model_selection import KFold
 #################################################################
 from natsort import natsorted
 class mydataset(Dataset):
-    def __init__(self,imageDir,labelDir,size,fold_num=1,trainning = True):
+    def __init__(self,imageDir,size,fold_num=1,trainning = False):
 
         self.size = size
-
+        
+        #kfold (cross validation)
         images = np.array(natsorted(glob(imageDir+'*')))
-        labels = np.array(natsorted(glob(labelDir+'*')))
-
+        
+        
         kfold = KFold(n_splits=9)
 
         train = dict()
@@ -26,19 +27,16 @@ class mydataset(Dataset):
         for train_index, test_index in kfold.split(images):
             print(f"train_index{train_index} \t test_index:{test_index}")
             img_train,img_test = images[train_index], images[test_index]
-            lab_train,lab_test = labels[train_index], labels[test_index]
             i+=1
             train.update([('train'+str(i),img_train),('test'+str(i),img_test)])
-            label.update([('train'+str(i),lab_train),('test'+str(i),lab_test)])
-        
-        train_num, label_num = 'train'+str(fold_num), 'test'+str(fold_num)
+            
+            
+        train_num, test_num = 'train'+str(fold_num), 'test'+str(fold_num)
 
         if trainning == True
-            self.images = image = image[train_num]
-            self.labels = labels[train_num]
+            self.images = image[train_num]
         else:
             self.images = image[test_num]
-            self.labels = labels[test_num]
 
     def normal_pdf(self,length, sensitivity):
         return np.exp(-sensitivity * (np.arange(length) - length / 2)**2)
@@ -147,26 +145,18 @@ class mydataset(Dataset):
     def __getitem__(self,index):
 
         image = skimage.io.imread(self.images[index])
-        label = skimage.io.imread(self.labels[index])
         mask  = self.cartesian_mask((1,len(image[:]),len(image[:])),self.size,sample_n=8)[0]
 
         image = image.astype(np.uint8)
-        label = label.astype(np.uint8)
-
         #make imaginary channel & real channel 
         image = np.stack((image, np.zeros_like(image)), axis=2)
-        label = np.stack((label, np.zeros_like(label)), axis=2)
         mask_s = np.stack((mask, np.zeros_like(mask)), axis=2)
         
 
         real_images = np.array(image)
-        label_images = np.array(label)
         mask_image = np.array(mask_s)
-            
         img=cvt2tanh(real_images,(1,2))
-        # img=self.c[index]
-        label=cvt2tanh(label_images,(1,2))
         
         mas = mask_image
 
-        return img, label, mas
+        return img, mas

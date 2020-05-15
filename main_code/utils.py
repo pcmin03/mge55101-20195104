@@ -119,78 +119,28 @@ def update(recon,image,mask,name='update'):
     return updated
 
 #################################################################
-#                            PSNR                               #
+#                     cross_validation                          #
 #################################################################
-def np_complex(data):
-	real  = data[...,0:1]
-	imag  = data[...,1:2]
-	del data
-	data = real + 1j*imag
-	return data
 
-def PSNR(img1,img2,max):
-    total_psnr = 0
-    for i in range(len(img1[:])):
-        img_1=img1[i]
-        img_2=img2[i]
-        bat = i
-        for j in range(len(img_1[:])):
-            img__1=np_complex(img_1[j]).astype(np.float64)
-            img__2=np_complex(img_2[j]).astype(np.float64)
-    
-            num_frame = j
-            # psnr=skimage.measure.compare_psnr(img__1,img__2,max)
-            mse = np.mean((img__1 - img__2) ** 2 )
-            psnr = 20*math.log10(max/math.sqrt(mse))
-            total_psnr  +=psnr
+def divide_kfold(imageDir,labelDir,k=9,name='test'):
+    images = np.array(natsorted(glob(imageDir+'*')))
+    labels = np.array(natsorted(glob(labelDir+'*')))
 
-    return total_psnr / ((bat+1) * (num_frame+1))
-#################################################################
-#                            SSIM                               #
-#################################################################
-from scipy.ndimage import uniform_filter, gaussian_filter
+    kfold = KFold(n_splits=k)
 
-def SSIM(img1,img2,max):
-    total_ssim = 0
-    L = max
-    C1 = (0.01*L)**2
-    C2 = (0.03*L)**2
-    for i in range(len(img1[:])):
-        img_1=img1[i]
-        img_2=img2[i]
-        bat = i
-        for j in range(len(img_1[:])):
-            img__1=np_complex(img_1[j]).astype(np.float64)
-            img__2=np_complex(img_2[j]).astype(np.float64)
-    
-            num_frame = j
-            # psnr=skimage.measure.compare_psnr(img__1,img__2,max)
-            mse = np.mean((img__1 - img__2) ** 2 )
-            
-            mu1 = uniform_filter(img__1)
-            mu2 = uniform_filter(img__2)
+    train = dict()
+    label  = dict()
+    i = 0
+    for train_index, test_index in kfold.split(images):
+        print(f"train_index{train_index} \t test_index:{test_index}")
+        img_train,img_test = images[train_index], images[test_index]
+        lab_train,lab_test = labels[train_index], labels[test_index]
+        i+=1
+        train.update([('train'+str(i),img_train),(name+str(i),img_test)])
+        label.update([('train'+str(i),lab_train),(name+str(i),lab_test)])
+    return train,label
 
-            mu_img1_2 = uniform_filter(img__1*img__2)
-            mu_img1 = uniform_filter(img__1**2)
-            mu_img2 = uniform_filter(img__2**2)
 
-            var_img1_2 = mu_img1_2 - mu1*mu2
-            var_img1   = mu_img1 - mu1**2 
-            var_img2   = mu_img2 - mu2**2
-
-            numerator = (2*mu_img1_2 + C1)*(2*var_img1_2+C2)
-            denominator = (mu_img1 + mu_img2 + C1)*(var_img1 + var_img2 + C2)
-            ssim = numerator/denominator
-            
-            ssim = skimage.measure.compare_ssim(img__1,img__2,max)
-            # mu_conv = image_1.
-            print(ssim)
-            # ssim = img__1.mean()*img__2.maen()
-            total_ssim  +=ssim
-
-    return total_ssim / ((bat+1) * (num_frame+1))
-
-        
 #################################################################
 #                    gradient panelty                           #
 #################################################################
@@ -217,28 +167,28 @@ def compute_gradient_penalty(netD, real_data, fake_data):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
     return gradient_penalty
 
-    def compute_gradient_penalty(netD, real_data, fake_data):
+    # def compute_gradient_penalty(netD, real_data, fake_data):
     
-    # print "real_data: ", real_data.size(), fake_data.size()
-    alpha = Variable(torch.rand(1),requires_grad=True)
+    # # print "real_data: ", real_data.size(), fake_data.size()
+    # alpha = Variable(torch.rand(1),requires_grad=True)
 
-    # alpha = Tensor(np.random.random((real_data.size(0),1, 1, 1))).to(cuda0)
+    # # alpha = Tensor(np.random.random((real_data.size(0),1, 1, 1))).to(cuda0)
 
-    # alpha = Variable(torch.rand(BATCH_SIZE,1,1,1),requires_grad=True)
-    alpha = alpha.expand(real_data.size()).to(cuda0)
-    # print(alpha.shape)
-    interpolates = (alpha * real_data + (1 - alpha) * fake_data).requires_grad_(True)
+    # # alpha = Variable(torch.rand(BATCH_SIZE,1,1,1),requires_grad=True)
+    # alpha = alpha.expand(real_data.size()).to(cuda0)
+    # # print(alpha.shape)
+    # interpolates = (alpha * real_data + (1 - alpha) * fake_data).requires_grad_(True)
 
-    if cuda0:
-        interpolates = interpolates.to(cuda0)
-    interpolates = Variable(interpolates, requires_grad=True)
+    # if cuda0:
+    #     interpolates = interpolates.to(cuda0)
+    # interpolates = Variable(interpolates, requires_grad=True)
 
-    disc_interpolates = netD(interpolates)
+    # disc_interpolates = netD(interpolates)
 
-    gradients = torch.autograd.grad(outputs=disc_interpolates, inputs=interpolates,
-                              grad_outputs=torch.ones(disc_interpolates.size()).to(cuda0),
-                              create_graph=True, retain_graph=True, only_inputs=True)[0]
-    # gradients = gradients.view(gradients.size(0), -1)
+    # gradients = torch.autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+    #                           grad_outputs=torch.ones(disc_interpolates.size()).to(cuda0),
+    #                           create_graph=True, retain_graph=True, only_inputs=True)[0]
+    # # gradients = gradients.view(gradients.size(0), -1)
 
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-    return gradient_penalty
+    # gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+    # return gradient_penalty
