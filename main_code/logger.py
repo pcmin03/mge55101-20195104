@@ -61,15 +61,14 @@ class Logger(object):
         save_dir = self.log_dir
         
         for i, img in enumerate(images_dict):
-            
             #change NCHW to NHWC save stack_image of TIF file
             #3d image
             if images_dict[img][num].ndim == 4:
                 result_image = np.transpose(images_dict[img][num],[1,2,3,0])
             #2d image
             elif images_dict[img][num].ndim ==3:
-                result_image = np.transpose(images_dict[img][num],[1,2,0])
-
+                result_image = images_dict[img][num,0]
+            print(result_image.shape,'1111')
             imsave(save_dir+str(img)+str(step)+'.tif',result_image)
 
     def print_value(self,vlaues,state='train'):
@@ -173,10 +172,14 @@ class Logger(object):
             project = np.max(final,axis=2)
             final_dict.update([('final'+str(i),final),('project'+str(i),project)])
         self.save_images(final_dict,0)
-    def save_csv_file(self,Class,name,class_list):
+    def save_csv_file(self,Class,name,class_list=[]):
         import pandas
-        # for num,name in enumerate(Class):
-        df = pd.DataFrame(Class,columns =class_list)
+        
+        
+        if type(Class) == 'dict':
+            df = pd.DataFrame(Class)
+        else:
+            df = pd.DataFrame(Class,columns =class_list)
         df.to_csv(self.log_dir +str(name)+'.csv')
     
     def convert_to_list(self,dictionary):

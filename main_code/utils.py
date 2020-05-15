@@ -21,6 +21,7 @@ from skimage.transform import rescale, resize, downscale_local_mean
 import torch
 import random
 import math
+from torch.autograd import Variable
 # torch.complex = ComplexTensor
 batch_size=16
 num_image = 5
@@ -90,33 +91,39 @@ def normalize_meanstd(a, axis=None):
 #                           kspace                              #
 #################################################################
 def apply_mask(image,mask,name='apply_mask'):
-
+    
+    image = image.permute(0,2,3,1)
+    mask = mask.permute(0,2,3,1)
     image = torch.fft(image,3).float()
     mask = mask.float()
     masked_image = torch.mul(mask[...,0:1],image)
     recon_img = torch.ifft(masked_image,3)
         
-    return masked_image,recon_img
+    return masked_image.permute(0,3,1,2),recon_img.permute(0,3,1,2)
 
 def update(recon,image,mask,name='update'):
+    
+
     k_recon,_=apply_mask(recon,torch.ones_like(mask))
     k_image,_=apply_mask(image,torch.ones_like(mask))
 
+    mask = mask.permute(0,2,3,1)
     m_real = mask[...,0:1]
     m_imag = mask[...,0:1]
-    m_mask = torch.cat([m_real,m_imag],dim=4)
+    m_mask = torch.cat([m_real,m_imag],dim=3)
 
     # k_return = torch.mul(k_recon,k_image)
-    k_image= k_image.float()
-    k_recon= k_recon.float()
+    k_image= k_image.float().permute(0,2,3,1)
+    k_recon= k_recon.float().permute(0,2,3,1)
 
     m_mas = m_mask.to(torch.bool)
+    # print(m_mas.shape,k_image.shape,k_recon.shape)
     k_return = torch.where(m_mas,k_image,k_recon)
 
 #     k_return = torch.mul(m_mask[...,0:1],k_recon)
     updated = torch.ifft(k_return,3)
     updated = updated.double()
-    return updated
+    return updated.float().permute(0,3,1,2)
 
 #################################################################
 #                     cross_validation                          #
@@ -144,23 +151,23 @@ def divide_kfold(imageDir,labelDir,k=9,name='test'):
 #################################################################
 #                    gradient panelty                           #
 #################################################################
-def compute_gradient_penalty(netD, real_data, fake_data):
+def compute_gradient_penalty(netD, real_data, fake_data, device):
     
     # print "real_data: ", real_data.size(), fake_data.size()
     alpha = Variable(torch.rand(1),requires_grad=True)
 
-    alpha = alpha.expand(real_data.size()).to(cuda0)
+    alpha = alpha.expand(real_data.size()).to(device)
     # print(alpha.shape)
     interpolates = (alpha * real_data + (1 - alpha) * fake_data).requires_grad_(True)
 
-    if cuda0:
-        interpolates = interpolates.to(cuda0)
+    if device:
+        interpolates = interpolates.to(device)
     interpolates = Variable(interpolates, requires_grad=True)
 
     disc_interpolates = netD(interpolates)
 
     gradients = torch.autograd.grad(outputs=disc_interpolates, inputs=interpolates,
-                              grad_outputs=torch.ones(disc_interpolates.size()).to(cuda0),
+                              grad_outputs=torch.ones(disc_interpolates.size()).to(device),
                               create_graph=True, retain_graph=True, only_inputs=True)[0]
     # gradients = gradients.view(gradients.size(0), -1)
 

@@ -1,11 +1,11 @@
-import io,
+import io
 import numpy as np 
 from glob import glob
 from natsort import natsorted
 
 from utils import *
 from sklearn.model_selection import KFold
-
+import skimage
 #################################################################
 #                         data load                             #
 #################################################################
@@ -25,18 +25,19 @@ class mydataset(Dataset):
         label  = dict()
         i = 0
         for train_index, test_index in kfold.split(images):
-            print(f"train_index{train_index} \t test_index:{test_index}")
             img_train,img_test = images[train_index], images[test_index]
             i+=1
             train.update([('train'+str(i),img_train),('test'+str(i),img_test)])
             
-            
         train_num, test_num = 'train'+str(fold_num), 'test'+str(fold_num)
-
-        if trainning == True
-            self.images = image[train_num]
+        
+    
+        if trainning == True:
+            self.images = train[train_num]
+            print(f"img_train:{len(img_train)} \t CV_train:{train_num} ")
         else:
-            self.images = image[test_num]
+            self.images = train[test_num]
+            print(f"img_test:{len(img_test)} \t CV_test:{test_num}")
 
     def normal_pdf(self,length, sensitivity):
         return np.exp(-sensitivity * (np.arange(length) - length / 2)**2)
@@ -149,8 +150,8 @@ class mydataset(Dataset):
 
         image = image.astype(np.uint8)
         #make imaginary channel & real channel 
-        image = np.stack((image, np.zeros_like(image)), axis=2)
-        mask_s = np.stack((mask, np.zeros_like(mask)), axis=2)
+        image = np.stack((image, np.zeros_like(image)), axis=0)
+        mask_s = np.stack((mask, np.zeros_like(mask)), axis=0)
         
 
         real_images = np.array(image)

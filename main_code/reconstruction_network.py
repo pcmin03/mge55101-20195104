@@ -7,59 +7,10 @@ import torch.nn.functional as F
 import torch
 import math
 import functools
-from main_reconstruction_spertral_normal import SpectralNorm
+from torchvision import models
+import segmentation_models_pytorch as smp
+# from main_reconstruction_spertral_normal import SpectralNorm
 
-class TVLoss(nn.Module):
-    def __init__(self,TVLoss_weight=1):
-        super(TVLoss,self).__init__()
-        self.TVLoss_weight = TVLoss_weight
-
-    def forward(self,x):
-        TV = []
-        # print(x.shape)
-        # x = x.permute(0,4,1,2,3)
-        for i in range(5):
-                # print(x.shape)
-                x_a = x[:,i,:,:]
-                # x = x.permute(0,3,1,2)
-                batch_size = x_a.size()[0]
-                h_x = x_a.size()[1]
-                # print(h_x)
-                w_x = x_a.size()[2]
-                count_h = self._tensor_size(x_a[:,1:,:])
-                count_w = self._tensor_size(x_a[:,:,1:])
-                # print(x_a[:,:,1:,:].shape)
-                # print(x_a[:,:,:h_x-1,:].shape)
-                h_tv = torch.pow((x_a[:,1:,:]-x_a[:,:h_x-1,:]),2).sum()
-                w_tv = torch.pow((x_a[:,:,1:]-x_a[:,:,:w_x-1]),2).sum()
-                TV.append(self.TVLoss_weight*2*(h_tv/count_h+w_tv/count_w)/batch_size)
-        TV = torch.stack(TV)
-        return  torch.mean(TV)
-
-    def _tensor_size(self,t):
-        return t.size()[0]*t.size()[1]*t.size()[2]
-
-
-class WGANLoss(nn.Module):
-    def __init__(self, loss_type):
-        super(WGANLoss, self).__init__()
-
-        if loss_type == 'gen':
-            self.forward = self.loss_gen
-        else:
-            self.forward = self.loss_disc
-
-    def loss_disc(self, outs_disc_fake, out_disc_real):
-        return outs_disc_fake.mean() - out_disc_real.mean()
-
-    def loss_gen(self, outs_disc_fake):
-        return -1 * outs_disc_fake.mean()
-
-def make_layer(block, n_layers):
-    layers = []
-    for _ in range(n_layers):
-        layers.append(block())
-    return nn.Sequential(*layers)
 ###################################################################################
                                     ##RRDB(W/O BATCHNORM)##
 ###################################################################################
@@ -95,117 +46,144 @@ class Bridge(nn.Module):
     def forward(self, x):
         return self.bridge(x)
 
-class UpBlockForUNetWithResNet50(nn.Module):
-
-    def __init__(self, in_channels, out_channels, up_conv_in_channels=None, up_conv_out_channels=None,
-                 upsampling_method="conv_transpose"):
-        super().__init__()
-
-        if up_conv_in_channels == None:
-            up_conv_in_channels = in_channels
-        if up_conv_out_channels == None:
-            up_conv_out_channels = out_channels
-
-        self.upsample = nn.ConvTranspose2d(up_conv_in_channels, up_conv_out_channels, kernel_size=2, stride=2)
-
-        self.conv_block_1 = ConvBlock(in_channels, out_channels)
-        self.conv_block_2 = ConvBlock(out_channels, out_channels)
-
-    def forward(self, up_x, down_x):
-        """
-        :param up_x: this is the output from the previous up block
-        :param down_x: this is the output from the down block
-        :return: upsampled feature map
-        """
-        x = self.upsample(up_x)
-        x = torch.cat([x, down_x], 1)
-        x = self.conv_block_1(x)
-        x = self.conv_block_2(x)
-        return x
-
-class reconstruction_resnet101unet(nn.Module):
-    DEPTH = 6
-
-    def __init__(self, n_classes=2):
-        super().__init__()
-        self.first = nn.Conv2d(1,3,3,1,padding=1)
-        resnet = models.resnet.resnet34(pretrained=False)
-        down_blocks = []
-        up_blocks = []
-        self.input_block = nn.Sequential(*list(resnet.children()))[:3]
-        self.input_pool = list(resnet.children())[3]
-        for bottleneck in list(resnet.children()):
-            if isinstance(bottleneck, nn.Sequential):
-                down_blocks.append(bottleneck)
-        self.down_blocks = nn.ModuleList(down_blocks)
-        self.bridge = Bridge(2048, 2048)
-        up_blocks.append(UpBlockForUNetWithResNet50(2048, 1024))
-        up_blocks.append(UpBlockForUNetWithResNet50(1024, 512))
-        up_blocks.append(UpBlockForUNetWithResNet50(512, 256))
-        up_blocks.append(UpBlockForUNetWithResNet50(in_channels=128 + 64, out_channels=128,
-                                                    up_conv_in_channels=256, up_conv_out_channels=128))
-        up_blocks.append(UpBlockForUNetWithResNet50(in_channels=64 + 3, out_channels=64,
-                                                    up_conv_in_channels=128, up_conv_out_channels=64))
-
-        self.up_blocks = nn.ModuleList(up_blocks)
-
-        self.out = nn.Conv2d(64, n_classes, kernel_size=1, stride=1)
-
-    def forward(self, x, with_output_feature_map=False):
-        x = self.first(x)
-        pre_pools = dict()
-        pre_pools[f"layer_0"] = x
-        x = self.input_block(x)
-        pre_pools[f"layer_1"] = x
-        x = self.input_pool(x)
-
-        for i, block in enumerate(self.down_blocks, 2):
-            x = block(x)
-            if i == (Segmentataion_resnet101unet.DEPTH - 1):
-                continue
-            pre_pools[f"layer_{i}"] = x
 
 
-        x = self.bridge(x)
+class VGGBlock(nn.Module):
+    def __init__(self, in_channels, middle_channels, out_channels, act_func=nn.ReLU(inplace=True)):
+        super(VGGBlock, self).__init__()
+        self.act_func = act_func
+        self.conv1 = nn.Conv2d(in_channels, middle_channels, 3, padding=1)
+        self.bn1 = nn.BatchNorm2d(middle_channels)
+        self.conv2 = nn.Conv2d(middle_channels, out_channels, 3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_channels)
 
-        for i, block in enumerate(self.up_blocks, 1):
-            key = f"layer_{Segmentataion_resnet101unet.DEPTH - 1 - i}"
-            x = block(x, pre_pools[key])
-        output_feature_map = x
-        x = self.out(x)
-        
-        if with_output_feature_map:
-            return x, output_feature_map
-        else:
-            return x
-
-class reconstruction_discriminaotr(nn.Module):
-
-    def __init__(self, n_classes=2):
-        super().__init__()
-        self.first = nn.Conv2d(1,3,3,1,padding=1)
-        resnet = models.resnet.resnet34(pretrained=False)
-        down_blocks = []
-        up_blocks = []
-        self.input_block = nn.Sequential(*list(resnet.children()))[:3]
-        self.input_pool = list(resnet.children())[3]
-        for bottleneck in list(resnet.children()):
-            if isinstance(bottleneck, nn.Sequential):
-                down_blocks.append(bottleneck)
-        self.down_blocks = nn.ModuleList(down_blocks)
-        
-        
     def forward(self, x):
-        x = self.first(x)
-        pre_pools = dict()
-        pre_pools[f"layer_0"] = x
-        x = self.input_block(x)
-        pre_pools[f"layer_1"] = x
-        x = self.input_pool(x)
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.act_func(out)
 
-        for i, block in enumerate(self.down_blocks, 2):
-            x = block(x)
-            if i == (Segmentataion_resnet101unet.DEPTH - 1):
-                continue
-            pre_pools[f"layer_{i}"] = x
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.act_func(out)
+
+        return out
+
+class single_conv(nn.Module):
+    def __init__(self,ch_in,ch_out):
+        super(single_conv,self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(ch_in, ch_out, kernel_size=3,stride=1,padding=1,bias=True),
+            nn.BatchNorm2d(ch_out),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self,x):
+        x = self.conv(x)
         return x
+#################################################################
+#                        simple unet                            #
+#################################################################
+class reconstruction_resunet(nn.Module):
+    def __init__(self,in_channels=2,classes=2,multi_output=False):
+        super(reconstruction_resunet,self).__init__()
+        self.model = smp.Unet('resnet34',in_channels=in_channels,classes=classes,activation='softmax',encoder_weights=None)
+    def forward(self,x):
+        return self.model(x)
+
+class reconstruction_discrim(nn.Module):
+    def __init__(self,in_channels=2,classes=1,multi_output=False):
+        super(reconstruction_discrim,self).__init__()
+        self.model = smp.Unet('resnet34',in_channels=in_channels,classes=classes,activation='softmax',encoder_weights=None)
+
+    def forward(self,x):
+        result = self.model.encoder.forward(x)
+        return result[len(result)-1]
+
+#################################################################
+#                     efficient_unet++                          #
+#################################################################
+class reconstruction_efficientunet(nn.Module):
+    def __init__(self,in_channels,classes,multi_output=False):
+        super(reconstruction_efficientunet,self).__init__()
+        #unet forward
+        feature_ = [40,32,48,136,384]
+
+        self.model =smp.Unet('efficientnet-b3',in_channels=1,classes=4)
+        
+        delayers = list(self.model.decoder.children())[1]
+        self.deconv5,self.deconv4,self.deconv3,self.deconv2,self.deconv1 = delayers
+        # print(self.deconv1)
+        self.deconv1 = VGGBlock(feature_[1],16,16)
+        # self.finals = self.model.segmentation_head
+        
+        self.up_x2_1 = single_conv(feature_[3]+feature_[2]  ,feature_[2])
+        self.up_x1_2 = single_conv(feature_[2]+feature_[1]*2,feature_[1])
+        self.up_x0_3 = single_conv(feature_[1]+feature_[0]*3,feature_[0])
+        self.topconcat = single_conv(feature_[0]*4,feature_[0])
+
+        self.up_x1_1 = single_conv(feature_[2]+feature_[1]  ,feature_[1])
+        self.up_x0_2 = single_conv(feature_[1]+feature_[0]*2,feature_[0])
+        self.midconcat = single_conv(feature_[1]*3,feature_[1])
+
+        self.up_x0_1 = single_conv(feature_[1]+feature_[0]  ,feature_[0])
+        self.lastconcat = single_conv(feature_[2]*2,feature_[2])
+        
+        if multi_output == True:
+            self.final1 = nn.Conv2d(feature_[0], classes, kernel_size=1)
+            self.final2 = nn.Conv2d(feature_[0], classes, kernel_size=1)
+            self.final3 = nn.Conv2d(feature_[0], classes, kernel_size=1)
+        self.multi_output = multi_output
+    
+        self.finals = nn.Conv2d(16, classes, kernel_size=1)
+        
+        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.softmax = nn.Softmax(dim=1)
+
+    def encoderforward(self,x):
+        return self.model.encoder.forward(x)
+    def forward(self,x):
+        _,x0_0,x1_0,x2_0,x3_0,x4_0 = self.encoderforward(x)
+        
+        #first skip connection
+        x0_1 = self.up_x0_1(torch.cat([x0_0,self.upsample(x1_0)],1))
+
+        #second skip connection
+        x1_1 = self.up_x1_1(torch.cat([x1_0,self.upsample(x2_0)],1))
+        x0_2 = self.up_x0_2(torch.cat([x0_0,x0_1,self.upsample(x1_1)],1))
+
+        #third skip connection
+        x2_1 = self.up_x2_1(torch.cat([x2_0,self.upsample(x3_0)],1))
+        x1_2 = self.up_x1_2(torch.cat([x1_0,x1_1,self.upsample(x2_1)],1))
+        x0_3 = self.up_x0_3(torch.cat([x0_0,x0_1,x0_2,self.upsample(x1_2)],1))
+
+        #forth depth
+        x3_1 = torch.cat([x3_0,self.upsample(x4_0)],1)
+        x3_1 = self.deconv5(x3_1)
+
+        #third depth
+        x2_0 = self.lastconcat(torch.cat([x2_0,x2_1],1))
+        x2_2 = torch.cat([x2_0,x3_1],1)
+        x2_2 = self.deconv4(x2_2)
+
+        #second depth
+        x1_0 = self.midconcat(torch.cat([x1_0,x1_1,x1_2],1))
+        x1_3 = torch.cat([x1_0,x2_2],1)
+        x1_3 = self.deconv3(x1_3)
+
+        #first depth
+        x0_0 = self.topconcat(torch.cat([x0_0,x0_1,x0_2,x0_3],1))
+        x0_4 = torch.cat([x0_0,x1_3],1)
+        x0_4 = self.deconv2(x0_4)
+        
+        last = self.deconv1(x0_4)
+        # print(last.shape,'111')
+        last = self.finals(last)
+        
+        
+        if self.multi_output == True:
+            output1 = self.final1(x0_1)
+            output2 = self.final2(x0_2)
+            output3 = self.final3(x0_3)
+            result= self.finals(last)
+            return [output1,output2,output3,result]
+        return self.softmax(last)
