@@ -61,7 +61,7 @@ class main:
             print('----------generator---------')
             self.gen = reconstruction_resunet().to(self.device)
             print('----------discriminator---------')
-            self.dis = reconstruction_discrim().to(self.device)
+            self.dis = classification_discrim().to(self.device)
 
 
         self.optimizerG = torch.optim.Adam(self.gen.parameters(),lr=self.learning_rate)
@@ -74,7 +74,7 @@ class main:
 
         #set multigpu ##
         if self.parallel == True:
-            self.gen = torch.nn.DataParallel(self.dddddgen, device_ids=[0,1])    
+            self.gen = torch.nn.DataParallel(self.gen, device_ids=[0,1])    
             self.dis = torch.nn.DataParallel(self.dis, device_ids=[0,1])    
             
     def load_loss(self):
@@ -89,7 +89,7 @@ class main:
         self.TVloss = TV_loss.to(self.device)
         
         ###trainning###
-        
+    
     def trainning(self):
         
         self.load_model()
@@ -109,9 +109,9 @@ class main:
         best_psnr = 0
         best_epoch = 0
         best_ssim = 0
-        
+
         for epoch in range(self.epoches):
-            
+      
             #set loss weight
             ALPHA = 1e+1
             GAMMA = 1e+4
@@ -140,7 +140,8 @@ class main:
                 final_psnr = 0
                 recon_ssim = 0
                 final_ssim = 0
-            
+            print(f"{epoch}/{self.epoches}epochs,IR=>{get_lr(self.optimizerG)},best_epoch=>{best_epoch},phase=>{phase}")
+            print(f"==>{self.path}<==")      
             for i, batch in enumerate(tqdm(Dataset[phase])):
                 if phase == 'train':
                     # set model inputa
@@ -176,7 +177,7 @@ class main:
                     freq_loss = self.Floss(under_image.to(torch.float32),freq_img).to(torch.float32)
                     
                     #WGan gen loss
-                    boost_dis_fake = self.dis(final_img)
+                    boost_dis_fake = self.dis(final_img[:,0:1])
 
                     boost_fake_A=self.WGAN_loss.loss_gen(boost_dis_fake)
                     #add regulization (total variation)
@@ -200,18 +201,18 @@ class main:
                                 'TV_a':TV_a}
 
                         ###############train discrim#################
-                        
-                    if i > self.gen_num:
+                        # self.gen_num
+                    if epoch > self.gen_num:
 
-                        dis_real_img = self.dis(_image)
-                        dis_fake_img = self.dis(final_img)
+                        dis_real_img = self.dis(_image[:,0:1])
+                        dis_fake_img = self.dis(final_img[:,0:1])
                         
                         self.optimizerD.zero_grad()
 
                         #calcuate loss function
                         dis_loss = self.WGAN_loss.loss_disc(dis_fake_img,dis_real_img)
                         # loss_RMSE   = Lloss(_image,final_image)            
-                        GP_loss=compute_gradient_penalty(self.dis, _image, final_img ,self.device)
+                        GP_loss=compute_gradient_penalty(self.dis, _image[:,0:1], final_img[:,0:1])
                         
                         discrim_loss = dis_loss + GP_loss
                         discrim_loss.backward(retain_graph=True)

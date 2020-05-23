@@ -7,10 +7,12 @@ import torch.nn.functional as F
 import torch
 import math
 import functools
+
 from torchvision import models
 import segmentation_models_pytorch as smp
 # from main_reconstruction_spertral_normal import SpectralNorm
-
+from torch.autograd import Variable
+import torch.autograd as autograd
 ###################################################################################
                                     ##RRDB(W/O BATCHNORM)##
 ###################################################################################
@@ -24,7 +26,7 @@ class ConvBlock(nn.Module):
         self.with_nonlinearity = with_nonlinearity
 
     def forward(self, x):
-        print(x.shape)
+        # print(x.shape)
         x = self.conv(x)
         x = self.bn(x)
         if self.with_nonlinearity:
@@ -98,6 +100,19 @@ class reconstruction_discrim(nn.Module):
     def forward(self,x):
         result = self.model.encoder.forward(x)
         return result[len(result)-1]
+
+class classification_discrim(nn.Module):
+    def __init__(self,in_ch=1):
+        super(classification_discrim,self).__init__()
+        self.first = nn.Conv2d(in_ch,3,3,1,padding=1)
+        self.discrim = models.resnet34(pretrained=True)
+        self.last = nn.Linear(1000,1)
+
+    def forward(self,x):
+        x = self.first(x)
+        result = self.discrim(x)
+        result = self.last(result)
+        return result
 
 #################################################################
 #                     efficient_unet++                          #
@@ -187,3 +202,27 @@ class reconstruction_efficientunet(nn.Module):
             result= self.finals(last)
             return [output1,output2,output3,result]
         return self.softmax(last)
+
+
+def compute_gradient_penalty(D, real_samples, fake_samples):
+    cuda = True if torch.cuda.is_available() else False
+    Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
+    """Calculates the gradient penalty loss for WGAN GP"""
+    # Random weight term for interpolation between real and fake samples
+    alpha = Tensor(np.random.random((real_samples.size(0), 1, 1, 1))).expand_as(real_samples)
+    # Get random interpolation between real and fake samples
+    interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
+    d_interpolates = D(interpolates)
+    fake = Variable(Tensor(real_samples.shape[0],1).fill_(1.0), requires_grad=False)
+    # Get gradient w.r.t. interpolates
+    gradients = autograd.grad(
+        outputs=d_interpolates,
+        inputs=interpolates,
+        grad_outputs=fake,
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True,
+    )[0]
+    gradients = gradients.view(gradients.size(0), -1)
+    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+    return gradient_penalty

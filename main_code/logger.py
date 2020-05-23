@@ -68,7 +68,6 @@ class Logger(object):
             #2d image
             elif images_dict[img][num].ndim ==3:
                 result_image = images_dict[img][num,0]
-            print(result_image.shape,'1111')
             imsave(save_dir+str(img)+str(step)+'.tif',result_image)
 
     def print_value(self,vlaues,state='train'):
