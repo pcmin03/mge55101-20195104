@@ -88,7 +88,7 @@ class single_conv(nn.Module):
 class reconstruction_resunet(nn.Module):
     def __init__(self,in_channels=2,classes=2,multi_output=False):
         super(reconstruction_resunet,self).__init__()
-        self.model = smp.Unet('resnet34',in_channels=in_channels,classes=classes,activation='softmax',encoder_weights=None)
+        self.model = smp.Unet('resnet101',in_channels=in_channels,classes=classes,activation='softmax',encoder_weights=None)
     def forward(self,x):
         return self.model(x)
 
@@ -118,12 +118,12 @@ class classification_discrim(nn.Module):
 #                     efficient_unet++                          #
 #################################################################
 class reconstruction_efficientunet(nn.Module):
-    def __init__(self,in_channels,classes,multi_output=False):
+    def __init__(self,in_channels=2,classes=2,multi_output=False):
         super(reconstruction_efficientunet,self).__init__()
         #unet forward
         feature_ = [40,32,48,136,384]
 
-        self.model =smp.Unet('efficientnet-b3',in_channels=1,classes=4)
+        self.model =smp.Unet('efficientnet-b3',in_channels=in_channels,classes=classes,encoder_weights=None)
         
         delayers = list(self.model.decoder.children())[1]
         self.deconv5,self.deconv4,self.deconv3,self.deconv2,self.deconv1 = delayers
@@ -226,3 +226,10 @@ def compute_gradient_penalty(D, real_samples, fake_samples):
     gradients = gradients.view(gradients.size(0), -1)
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
     return gradient_penalty
+
+class pyramid_unet(nn.Module):
+    def __init__(self,in_channels=2,classes=2,multi_output=False):
+        super(pyramid_unet,self).__init__()
+        self.model = smp.Unet('se_resnet152',in_channels=in_channels,classes=classes,activation='softmax',encoder_weights=None)
+    def forward(self,x):
+        return self.model(x)

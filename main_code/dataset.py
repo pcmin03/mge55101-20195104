@@ -39,6 +39,8 @@ class mydataset(Dataset):
             self.images = train[test_num]
             print(f"img_test:{len(img_test)} \t CV_test:{test_num}")
 
+        self.L_transform = transforms.Compose([transforms.ToTensor(),
+                        transforms.Normalize([0.5], [0.5])])
     def normal_pdf(self,length, sensitivity):
         return np.exp(-sensitivity * (np.arange(length) - length / 2)**2)
 
@@ -150,14 +152,16 @@ class mydataset(Dataset):
 
         image = image.astype(np.uint8)
         #make imaginary channel & real channel 
+        image = self.L_transform(image)[0]
         image = np.stack((image, np.zeros_like(image)), axis=0)
         mask_s = np.stack((mask, np.zeros_like(mask)), axis=0)
         
-
         real_images = np.array(image)
         mask_image = np.array(mask_s)
-        img=cvt2tanh(real_images,(1,2))
+        # img=cvt2tanh(real_images)
         
+        
+        img = real_images
         mas = mask_image
-
+        # print(real_images.shape,img.max())
         return img, mas

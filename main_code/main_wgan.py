@@ -24,7 +24,7 @@ class main:
 
     #initilize Generaotor and discriminator
     def __init__(self,args):
-        self.model = 'effcientunet'
+        self.model = 'basic'
 
         # self.path = './unet_denseunet_wgangp/10percent_cascade_boost_test'
         #set optimize
@@ -33,7 +33,7 @@ class main:
         self.sampling = 5
         self.parallel = True
         self.learning_rate = 1e-4
-        self.end_lr = 1e-6
+        self.end_lr = 1e-3
         self.use_scheduler = True
         self.knum = args.knum
         deleteall = False
@@ -44,7 +44,7 @@ class main:
             print('----- Make_save_Dir-------------')
             os.makedirs(self.path)
             print(self.path)
-        self.path += '/'+str(self.model)+str(self.knum)+'/'
+        self.path += '/paraell_'+str(self.model)+str(self.knum)+'/'
         self.imageDir = '../../mri_dataset/real_final_train/'
         
         #set a dataset ##
@@ -60,24 +60,31 @@ class main:
         if self.model == 'basic':
             print('----------generator---------')
             self.gen = reconstruction_resunet().to(self.device)
+            self.regen = reconstruction_resunet().to(self.device)
+            
             print('----------discriminator---------')
             self.dis = classification_discrim().to(self.device)
-            self.batch_size=25
+            
+            self.batch_size=15
         elif self.model == 'effcientunet':
             print('----------generator---------')
             self.gen = reconstruction_efficientunet().to(self.device)
+            self.regen = reconstruction_efficientunet().to(self.device)
+            
             print('----------discriminator---------')
             self.dis = classification_discrim().to(self.device)
             self.batch_size=13
         elif self.model =='pyramid_unet':
             print('----------generator---------')
             self.gen = pyramid_unet().to(self.device)
+            self.regen = pyramid_unet().to(self.device)
+            
             print('----------discriminator---------')
             self.dis = classification_discrim().to(self.device)
             self.batch_size=13
         
 
-        self.optimizerG = torch.optim.Adam(self.gen.parameters(),lr=self.learning_rate)
+        self.optimizerG = torch.optim.Adam(list(self.gen.parameters())+list(self.regen.parameters()),lr=self.learning_rate)
         self.optimizerD = torch.optim.Adam(self.dis.parameters(),lr=self.learning_rate)
 
         Tensor = torch.cuda.FloatTensor if self.device else torch.FloatTensor
@@ -88,6 +95,8 @@ class main:
         #set multigpu ##
         if self.parallel == True:
             self.gen = torch.nn.DataParallel(self.gen, device_ids=[0,1])    
+            self.regen = torch.nn.DataParallel(self.regen, device_ids=[0,1])    
+            
             self.dis = torch.nn.DataParallel(self.dis, device_ids=[0,1])    
             
     def load_loss(self):
@@ -134,6 +143,7 @@ class main:
 
             if epoch % self.validnum == 0:
                 self.gen.eval()
+                self.regen.eval()
                 self.dis.eval()
                 phase = 'valid'
                 self.save_model('last',epoch)
@@ -142,9 +152,11 @@ class main:
                 val_final_psnr = 0
                 val_recon_ssim = 0
                 val_final_ssim = 0
+
                 
             else :
                 self.gen.train()
+                self.regen.train()
                 self.dis.train()
                 phase = 'train'
                 self.schedulerG.step(epoch)
@@ -181,38 +193,58 @@ class main:
                     
                     final_img = update(recon_img,_image,mask).to(torch.float32).to(self.device)
 
+                    ###refine gan ####
+                    retrained_img = self.regen(final_img)
+                    re_recon_img = torch.add(retrained_img, zero_image).float().to(self.device)
+                    re_final_img = update(re_recon_img, _image,mask).to(torch.float32).to(self.device)
 
+
+                    ###########total generate loss ##############
                     #image losses
-                    recon_loss = self.Lloss(_image,recon_img) 
-                    error_loss = self.Closs(_image,final_img)        
+                    recon_loss = self.Lloss(_image,recon_img)
+                    error_loss = self.Closs(_image,final_img)       
+                    
+                    re_recon_loss = self.Lloss(_image,re_recon_img)
+                    re_error_loss = self.Closs(_image,re_final_img)
                     #compare frequecy image
                     #frequency loss
                     freq_img,_ = apply_mask(final_img,mask)
+                    re_freq_img,_ = apply_mask(re_final_img,mask)
+
                     freq_loss = self.Floss(under_image.to(torch.float32),freq_img).to(torch.float32)
+                    re_freq_loss = self.Floss(under_image.to(torch.float32),re_freq_img).to(torch.float32)
                     
                     #WGan gen loss
                     boost_dis_fake = self.dis(final_img[:,0:1])
+                    re_boost_dis_fake = self.dis(re_final_img[:,0:1])
 
                     boost_fake_A=self.WGAN_loss.loss_gen(boost_dis_fake)
+                    re_boost_fake_A=self.WGAN_loss.loss_gen(re_boost_dis_fake)
+
                     #add regulization (total variation)
                     
                     TV_a=self.TVloss(final_img).to(torch.float32)
+                    re_TV_a = self.TVloss(re_final_img).to(torch.float32)
                     
                     #reconstruction loss
-                    boost_R_loss = recon_loss + error_loss + freq_loss
-                    boost_R_loss += boost_fake_A
-                    boost_R_loss += TV_a
-                    loss_g = boost_R_loss
+                    boost_R_loss = (recon_loss + error_loss  + re_recon_loss + re_error_loss) + (freq_loss + re_freq_loss)
+                    boost_R_loss += (boost_fake_A + re_boost_fake_A)
+                    boost_R_loss += (TV_a + re_TV_a)
+                    loss_g = (boost_R_loss)
                     loss_g.backward(retain_graph=True)
                     
                     self.optimizerG.step()
 
-                    
-                    
                     summary_val = {'recon_loss':recon_loss,
-                                'error_loss':recon_loss,
+                                'error_loss':error_loss,
                                 'freq_loss':freq_loss,
                                 'TV_a':TV_a}
+
+
+                    summary_val.update({'re_recon_loss':re_recon_loss,
+                                're_error_loss':re_error_loss,
+                                're_freq_loss':re_freq_loss,
+                                're_TV_a':re_TV_a})
 
                         ###############train discrim#################
                         # self.gen_num
@@ -220,32 +252,50 @@ class main:
 
                         dis_real_img = self.dis(_image[:,0:1])
                         dis_fake_img = self.dis(final_img[:,0:1])
+                        re_dis_fake_img = self.dis(re_final_img[:,0:1])
                         
+
                         self.optimizerD.zero_grad()
 
                         #calcuate loss function
                         dis_loss = self.WGAN_loss.loss_disc(dis_fake_img,dis_real_img)
+                        re_dis_loss = self.WGAN_loss.loss_disc(re_dis_fake_img,dis_real_img)
+
                         # loss_RMSE   = Lloss(_image,final_image)            
                         GP_loss=compute_gradient_penalty(self.dis, _image[:,0:1], final_img[:,0:1])
+                        re_GP_loss=compute_gradient_penalty(self.dis, _image[:,0:1], re_final_img[:,0:1])
                         
-                        discrim_loss = dis_loss + GP_loss
+                        discrim_loss = (dis_loss + re_dis_loss) + (GP_loss + re_GP_loss)
                         discrim_loss.backward(retain_graph=True)
 
                         self.optimizerD.step()
                         summary_val.update({'dis_loss':dis_loss,'GP_loss':GP_loss})
+                        
+                        summary_val.update({'re_dis_loss':re_dis_loss,'re_GP_loss':re_GP_loss})
                 
-                    final_img = cv2.normalize(final_img.cpu().detach().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
-                    recon_img = cv2.normalize(recon_img.cpu().detach().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
-                    _image = cv2.normalize(_image.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+                    # final_img = cv2.normalize(final_img.cpu().detach().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+                    # recon_img = cv2.normalize(recon_img.cpu().detach().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+                    # _image = cv2.normalize(_image.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
                     
-                    final_psnr += evalution.PSNR(final_img,_image,1)
-                    recon_psnr += evalution.PSNR(recon_img,_image,1)
-                    final_ssim += evalution.PSNR(final_img,_image,1)
-                    recon_ssim += evalution.PSNR(recon_img,_image,1)
+                    # re_final_img = cv2.normalize(re_final_img.cpu().detach().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+                    # re_recon_img = cv2.normalize(re_recon_img.cpu().detach().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+                    
+                    final_img = (final_img * 255.0).cpu().detach().numpy()
+                    recon_img = (recon_img * 255.0).cpu().detach().numpy()
+                    _image = (_image * 255.0).cpu().numpy()
+                    
+                    re_final_img = (re_final_img * 255.0).cpu().detach().numpy()
+                    re_recon_img = (re_recon_img * 255.0).cpu().detach().numpy()
+                    
+
+                    final_psnr = evalution.PSNR(final_img,_image,255.0)
+                    recon_psnr = evalution.PSNR(recon_img,_image,255.0)
+                    final_ssim = evalution.PSNR(re_final_img,_image,255.0)
+                    recon_ssim = evalution.PSNR(re_recon_img,_image,255.0)
+                    
+                    
                 else:
                     with torch.no_grad():
-                        self.gen.eval()
-                        self.dis.eval()
 
                         inputa, mask = batch[0].to(self.device), batch[1].to(self.device)
                         
@@ -253,40 +303,68 @@ class main:
                         mask = mask.float()
                         
                         under_im,inputs = apply_mask(inputa,mask)
-                        
                         prediction = self.gen(inputs.float())
-                        
                         prediction = torch.add(inputs.float() , prediction)                         
-                        
-                        
                         pred = update(prediction,inputa,mask)
+
+                        
+
+                        re_prediction = self.regen(prediction.float())
+                        
+                        re_prediction = torch.add(inputs.float() , re_prediction)                         
+                        
+                        re_pred = update(re_prediction,inputa,mask)
+
                         recon_loss = self.Lloss(inputa,prediction) 
                         error_loss = self.Closs(inputa,pred)        
+                        re_recon_loss = self.Lloss(inputa,re_prediction) 
+                        re_error_loss = self.Closs(inputa,re_pred)        
+                        
                         #compare frequecy image
                         #frequency loss
 
                         freq_img,_ = apply_mask(pred,mask)
                         freq_loss = self.Floss(under_im.to(torch.float32),freq_img).to(torch.float32)
 
+                        re_freq_img,_ = apply_mask(re_pred,mask)
+                        re_freq_loss = self.Floss(under_im.to(torch.float32),re_freq_img).to(torch.float32)
+
+
                         summary_val = {'recon_loss':recon_loss,
-                            'error_loss':recon_loss,
+                            'error_loss':error_loss,
                             'freq_loss':freq_loss}
             
 
+                        summary_val.update({'re_recon_loss':re_recon_loss,
+                            're_error_loss':re_error_loss,
+                            're_freq_loss':re_freq_loss})
+            
+
                         #calcuate matrix
-                        prediction = cv2.normalize(prediction.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
-                        pred = cv2.normalize(pred.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
-                        inputa = cv2.normalize(inputa.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
-                        
-                        val_final_psnr += evalution.PSNR(prediction,inputa,1)
-                        val_recon_psnr += evalution.PSNR(pred,inputa,1)
-                        val_final_ssim += evalution.PSNR(prediction,inputa,1)
-                        val_recon_ssim += evalution.PSNR(pred,inputa,1)
+                        # prediction = cv2.normalize(prediction.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+                        # pred = cv2.normalize(pred.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+                        # inputa = cv2.normalize(inputa.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+
+                        # re_prediction = cv2.normalize(re_prediction.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+                        # re_pred = cv2.normalize(re_pred.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
+
+                        prediction = (prediction  * 255.0).cpu().detach().numpy()
+                        pred = (pred * 255.0).cpu().detach().numpy()
+                        inputa = (inputa * 255.0).cpu().numpy()
+
+                        re_prediction = (re_prediction * 255.0).cpu().detach().numpy()
+                        re_pred = (re_pred * 255.0).cpu().detach().numpy()
+
+                        val_final_psnr = evalution.PSNR(prediction,inputa,255.0)
+                        val_recon_psnr = evalution.PSNR(pred,inputa,255.0)
+                        val_final_ssim = evalution.PSNR(re_prediction,inputa,255.0)
+                        val_recon_ssim = evalution.PSNR(re_pred,inputa,255.0)
 
             if phase == 'train':
                 i=float(i)     
-                evalutiondict = {'final_psnr':final_psnr/i,'recon_psnr':recon_psnr/i,
-                                    'final_ssim':final_ssim/i,'recon_ssim':recon_ssim/i}
+                evalutiondict = {'final_psnr':final_psnr,'recon_psnr':recon_psnr,
+                                    'final_ssim':final_ssim,'recon_ssim':recon_ssim}
+                                    
                 summary_val.update(evalutiondict)
                 self.printall(summary_val,epoch,'train')
                 
@@ -299,8 +377,8 @@ class main:
             else:      
                 i=float(i)
             
-                evalutiondict = {'val_final_psnr':val_final_psnr/i,'val_recon_psnr':val_recon_psnr/i,
-                                    'val_final_ssim':val_final_ssim/i,'val_recon_ssim':val_recon_ssim/i}
+                evalutiondict = {'val_final_psnr':val_final_psnr,'val_recon_psnr':val_recon_psnr,
+                                    'val_final_ssim':val_final_ssim,'val_recon_ssim':val_recon_ssim}
                 summary_val.update(evalutiondict)
                 self.printall(summary_val,epoch,'valid')
 
@@ -314,6 +392,10 @@ class main:
                                 'final_image':pred,
                                 'input_image':inputa}
                 
+                total_image.update({'re_recon_image':re_prediction,
+                                're_final_image':re_pred})
+                
+
                 self.re_normalize(total_image,255)
                 total_image.update({'zero_image':inputs.cpu().numpy()})
 
@@ -321,11 +403,18 @@ class main:
                 final_error_img = total_image['input_image'] - total_image['final_image']
                 zero_error_img = total_image['input_image'] - total_image['zero_image']
 
+                re_recon_error_img = total_image['input_image'] - total_image['re_recon_image']
+                re_final_error_img = total_image['input_image'] - total_image['re_final_image']
+                
+
                 total_image.update({'recon_error_img':recon_error_img,
                                     'final_error_img':final_error_img,
                                     'zero_error_img':zero_error_img,
                                     'mask':mask.cpu().numpy()})
                 
+                total_image.update({'re_recon_error_img':re_recon_error_img,
+                                    're_final_error_img':re_final_error_img})
+                                    
                 self.logger.save_images(total_image,epoch)
                             # avg_ssim += ssim
                                 # z_avg_ssim += z_ssim
@@ -338,23 +427,50 @@ class main:
 
     def re_normalize(self,convert_dict_image,max_value):
         normalizedImg = np.zeros((192,192))
-        for i, scalar in enumerate(convert_dict_image):
-            print(i,scalar)
-            convert_dict_image[scalar] = cv2.normalize(convert_dict_image[scalar],  normalizedImg, 0, max_value, cv2.NORM_MINMAX)
+        norm = True
+        if norm == True:
+            for i, scalar in enumerate(convert_dict_image):
+                print(i,scalar)
+                convert_dict_image[scalar] = cv2.normalize(convert_dict_image[scalar],  normalizedImg, 0, max_value, cv2.NORM_MINMAX)
+        elif norm == False:
+            for i, scalar in enumerate(convert_dict_image):
+                print(i,scalar)
+                convert_dict_image[scalar] = cv2.normalize(convert_dict_image[scalar].cpu().numpy(),  normalizedImg, 0, max_value, cv2.NORM_MINMAX)
 
                 # self.writer.add_scalar(str(tag)+'/'+str(scalar),scalar_dict[scalar],step)
 
     def save_model(self,name,epoch):
         # self.logger.save_model(self.gen,self.dis,epoch,self.path)
 
-        torch.save({"gen_model":self.gen.state_dict(),
-                    "dis_model":self.dis.state_dict(),
-                    "optimizerG":self.optimizerG.state_dict(),
-                    "optimierD":self.optimizerD.state_dict(),
-                    "epoch":epoch},
-                    self.path+str(name)+"_save_models{}.pth")
+        if self.parallel == False:
+            torch.save({"gen_model":self.gen.state_dict(),
+                        "regen_model":self.regen.state_dict(),
+                        
+                        "dis_model":self.dis.state_dict(),
+                        "optimizerG":self.optimizerG.state_dict(),
+                        "optimierD":self.optimizerD.state_dict(),
+                        "epoch":epoch},
+                        self.path+str(name)+"_save_models{}.pth")
+        elif self.parallel == True:
+            torch.save({"gen_model":self.gen.module.state_dict(),
+                        "regen_model":self.regen.module.state_dict(),
+                        
+                        "dis_model":self.dis.module.state_dict(),
+                        "optimizerG":self.optimizerG.state_dict(),
+                        "optimierD":self.optimizerD.state_dict(),
+                        "epoch":epoch},
+                        self.path+str(name)+"_save_models{}.pth")
+
+    def load_save_model(self):
+        checkpoint = torch.load(self.path+"lastsave_model_save_models{}.pth")
+        self.gen.load_state_dict(checkpoint['gen_model'])
+        self.regen.load_state_dict(checkpoint['regen_model'])
+        self.dis.load_state_dict(checkpoint['dis_model'])
 
     def testing(self):
+        self.load_save_model()
+        self.logger.changedir()
+
         t_imageDir = '../mri_dataset/real_final_test/'
         t_labelDir = '../mri_dataset/real_final_test/'
         
@@ -368,8 +484,6 @@ class main:
                                 shuffle = True, 
                                 num_workers = 4)}
         
-        self.load_model()
-        
         phase = 'test'
         test_final_psnr = 0
         test_recon_psnr = 0
@@ -380,6 +494,7 @@ class main:
         for i, batch in enumerate(tqdm(Dataset[phase])):
             with torch.no_grad():
                 self.gen.eval()
+                self.regen.eval()
                 self.dis.eval()
 
 
@@ -394,23 +509,28 @@ class main:
                 prediction = torch.add(inputs.float() , prediction)                            
                 pred = update(prediction,inputa,mask)
 
+                prediction = self.gen(inputs.float())
+                prediction = torch.add(inputs.float() , prediction)                            
+                pred = update(prediction,inputa,mask)
+
+
                 #calcuate matrix
                 prediction = cv2.normalize(prediction.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
                 pred = cv2.normalize(pred.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
                 inputa = cv2.normalize(inputa.cpu().numpy(),  normalizedImg, 0, 1, cv2.NORM_MINMAX)
                 
-                test_final_psnr += test_evalution.PSNR(final_img,_image,1)
-                test_recon_psnr += test_evalution.PSNR(recon_img,_image,1)
-                test_final_ssim += test_evalution.PSNR(final_img,_image,1)
-                test_recon_ssim += test_evalution.PSNR(recon_img,_image,1)
+                test_final_psnr = test_evalution.psnr(final_img,_image,1)
+                test_recon_psnr = test_evalution.psnr(recon_img,_image,1)
+                test_final_ssim = test_evalution.psnr(final_img,_image,1)
+                test_recon_ssim = test_evalution.psnr(recon_img,_image,1)
                     
         
             i=float(i)
 
             self.logger.changedir()
             
-            evalutiondict = {'val_final_psnr':test_final_psnr/i,'val_recon_psnr':test_recon_psnr/i,
-                                'val_final_ssim':test_final_ssim/i,'val_recon_ssim':test_recon_ssim/i}
+            evalutiondict = {'val_final_psnr':test_final_psnr,'val_recon_psnr':test_recon_psnr,
+                                'val_final_ssim':test_final_ssim,'val_recon_ssim':test_recon_ssim}
             
             # class_list=['recon_psnr','final_psnr','recon_ssim','final_ssim']
             class_list,evalutiondict = self.logger.convert_to_list(evalutiondict)
