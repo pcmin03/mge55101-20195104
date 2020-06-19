@@ -88,24 +88,46 @@ class single_conv(nn.Module):
 class reconstruction_resunet(nn.Module):
     def __init__(self,in_channels=2,classes=2,multi_output=False):
         super(reconstruction_resunet,self).__init__()
-        self.model = smp.Unet('resnet101',in_channels=in_channels,classes=classes,activation='softmax',encoder_weights=None)
+        # se_resnet101
+        # resnet101
+        # self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='sigmoid',encoder_weights=None)
+        self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='arctan',encoder_weights=None)
+        # self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='nn.Tanh(),encoder_weights=None)
     def forward(self,x):
         return self.model(x)
 
+class reconstruction_deeplab(nn.Module):
+    def __init__(self,in_channels=2,classes=2,multi_output=False):
+        super(reconstruction_deeplab,self).__init__()
+        # se_resnet101
+        # resnet101
+        # arctan
+        # self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='sigmoid',encoder_weights=None)
+        self.model = smp.DeepLabV3('se_resnet101',in_channels=in_channels,classes=classes,activation='arctan',encoder_weights=None)
+        # self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='nn.Tanh(),encoder_weights=None)
+    def forward(self,x):
+        return self.model(x)
+
+
 class reconstruction_discrim(nn.Module):
-    def __init__(self,in_channels=2,classes=1,multi_output=False):
+    def __init__(self,in_channels=1,classes=1,multi_output=False):
         super(reconstruction_discrim,self).__init__()
-        self.model = smp.Unet('resnet34',in_channels=in_channels,classes=classes,activation='softmax',encoder_weights=None)
+        self.model = smp.Unet('resnet101',in_channels=in_channels,classes=classes,activation='sigmoid',encoder_weights=None)
+        # self.model = smp.Unet('resnet34',in_channels=in_channels,classes=classes,activation={'arctan':torch.nn.Tanh()},encoder_weights=None)
+        self.last = nn.Conv2d(1024,1,3,padding=1)
 
     def forward(self,x):
         result = self.model.encoder.forward(x)
-        return result[len(result)-1]
+        # print(result[len(result)-2].shape)
+        result[len(result)-2] = self.last(result[len(result)-2])
+        # print(result[len(result)-2].shape)
+        return result[len(result)-2]
 
 class classification_discrim(nn.Module):
     def __init__(self,in_ch=1):
         super(classification_discrim,self).__init__()
         self.first = nn.Conv2d(in_ch,3,3,1,padding=1)
-        self.discrim = models.resnet34(pretrained=True)
+        self.discrim = models.resnet101(pretrained=True)
         self.last = nn.Linear(1000,1)
 
     def forward(self,x):
@@ -121,14 +143,23 @@ class reconstruction_efficientunet(nn.Module):
     def __init__(self,in_channels=2,classes=2,multi_output=False):
         super(reconstruction_efficientunet,self).__init__()
         #unet forward
-        feature_ = [40,32,48,136,384]
-
-        self.model =smp.Unet('efficientnet-b3',in_channels=in_channels,classes=classes,encoder_weights=None)
+        # feature_ = [40,32,48,136,384]
         
+        feature_ = [64,256,512,1024,2048]
+
+        # self.model =smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,encoder_weights=None)
+    
+        self.model =smp.Unet('se_resnet50',in_channels=in_channels,activation='arctan',classes=classes,encoder_weights=None)
+    
         delayers = list(self.model.decoder.children())[1]
+        # delayers = self.model.decoder(activation='arctan')
+        # print(delayers)
         self.deconv5,self.deconv4,self.deconv3,self.deconv2,self.deconv1 = delayers
         # print(self.deconv1)
-        self.deconv1 = VGGBlock(feature_[1],16,16)
+        # print(delayers)
+        # self.deconv5 = self.deconv5(activation='arctan')
+        # print(deconv5)
+        self.deconv1 = VGGBlock(32,16,16)
         # self.finals = self.model.segmentation_head
         
         self.up_x2_1 = single_conv(feature_[3]+feature_[2]  ,feature_[2])
@@ -152,14 +183,15 @@ class reconstruction_efficientunet(nn.Module):
         self.finals = nn.Conv2d(16, classes, kernel_size=1)
         
         self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.softmax = nn.Softmax(dim=1)
-
+        # self.softmax = nn.(dim=1)
+        self.sigmoid = nn.Tanh()
     def encoderforward(self,x):
         return self.model.encoder.forward(x)
     def forward(self,x):
         _,x0_0,x1_0,x2_0,x3_0,x4_0 = self.encoderforward(x)
         
         #first skip connection
+        # print(x0_0.shape,x1_0.shape,x2_0.shape,x3_0.shape,x4_0.shape)
         x0_1 = self.up_x0_1(torch.cat([x0_0,self.upsample(x1_0)],1))
 
         #second skip connection
@@ -201,31 +233,31 @@ class reconstruction_efficientunet(nn.Module):
             output3 = self.final3(x0_3)
             result= self.finals(last)
             return [output1,output2,output3,result]
-        return self.softmax(last)
+        return self.sigmoid(last)
 
 
-def compute_gradient_penalty(D, real_samples, fake_samples):
-    cuda = True if torch.cuda.is_available() else False
-    Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
-    """Calculates the gradient penalty loss for WGAN GP"""
-    # Random weight term for interpolation between real and fake samples
-    alpha = Tensor(np.random.random((real_samples.size(0), 1, 1, 1))).expand_as(real_samples)
-    # Get random interpolation between real and fake samples
-    interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-    d_interpolates = D(interpolates)
-    fake = Variable(Tensor(real_samples.shape[0],1).fill_(1.0), requires_grad=False)
-    # Get gradient w.r.t. interpolates
-    gradients = autograd.grad(
-        outputs=d_interpolates,
-        inputs=interpolates,
-        grad_outputs=fake,
-        create_graph=True,
-        retain_graph=True,
-        only_inputs=True,
-    )[0]
-    gradients = gradients.view(gradients.size(0), -1)
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-    return gradient_penalty
+# def compute_gradient_penalty(D, real_samples, fake_samples):
+#     cuda = True if torch.cuda.is_available() else False
+#     Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
+#     """Calculates the gradient penalty loss for WGAN GP"""
+#     # Random weight term for interpolation between real and fake samples
+#     alpha = Tensor(np.random.random((real_samples.size(0), 1, 1, 1))).expand_as(real_samples)
+#     # Get random interpolation between real and fake samples
+#     interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
+#     d_interpolates = D(interpolates)
+#     fake = Variable(Tensor(real_samples.shape[0],1).fill_(1.0), requires_grad=False)
+#     # Get gradient w.r.t. interpolates
+#     gradients = autograd.grad(
+#         outputs=d_interpolates,
+#         inputs=interpolates,
+#         grad_outputs=fake,
+#         create_graph=True,
+#         retain_graph=True,
+#         only_inputs=True,
+#     )[0]
+#     gradients = gradients.view(gradients.size(0), -1)
+#     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+#     return gradient_penalty
 
 class pyramid_unet(nn.Module):
     def __init__(self,in_channels=2,classes=2,multi_output=False):
@@ -233,3 +265,47 @@ class pyramid_unet(nn.Module):
         self.model = smp.Unet('se_resnet152',in_channels=in_channels,classes=classes,activation='softmax',encoder_weights=None)
     def forward(self,x):
         return self.model(x)
+
+
+#################################################################
+#                using perceptual loss++                        #
+#################################################################
+
+
+class Vgg16(nn.Module):
+    def __init__(self):
+        super(Vgg16, self).__init__()
+        features = models.vgg16(pretrained=True).features
+        self.to_relu_1_2 = nn.Sequential() 
+        self.to_relu_2_2 = nn.Sequential() 
+        self.to_relu_3_3 = nn.Sequential()
+        self.to_relu_4_3 = nn.Sequential()
+        self.first = nn.Conv2d(2,3,3,padding=1)
+        for x in range(4):
+            self.to_relu_1_2.add_module(str(x), features[x])
+        for x in range(4, 9):
+            self.to_relu_2_2.add_module(str(x), features[x])
+        for x in range(9, 16):
+            self.to_relu_3_3.add_module(str(x), features[x])
+        for x in range(16, 23):
+            self.to_relu_4_3.add_module(str(x), features[x])
+        
+        # don't need the gradients, just want the features
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def forward(self, x):
+        
+        h = self.first(x)
+        
+        h = self.to_relu_1_2(h)
+        h_relu_1_2 = h
+        h = self.to_relu_2_2(h)
+        h_relu_2_2 = h
+        h = self.to_relu_3_3(h)
+        h_relu_3_3 = h
+        h = self.to_relu_4_3(h)
+        h_relu_4_3 = h
+        # print(h_relu_1_2.shape, h_relu_2_2.shape, h_relu_3_3.shape, h_relu_4_3.shape)
+        out = [h_relu_1_2, h_relu_2_2, h_relu_3_3, h_relu_4_3]
+        return out

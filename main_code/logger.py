@@ -180,7 +180,7 @@ class Logger(object):
         else:
             df = pd.DataFrame(Class,columns =class_list)
         df.to_csv(self.log_dir +str(name)+'.csv')
-    
+        print(self.log_dir)
     def convert_to_list(self,dictionary):
         return dictionary.keys(),dictionary.values()
         

@@ -11,36 +11,42 @@ import skimage
 #################################################################
 from natsort import natsorted
 class mydataset(Dataset):
-    def __init__(self,imageDir,size,fold_num=1,trainning = False):
+    def __init__(self,imageDir,size,fold_num=1,trainning = False,kfold=True,self_supervised=False):
 
         self.size = size
-        
-        #kfold (cross validation)
+        self.self_supervised = self_supervised
         images = np.array(natsorted(glob(imageDir+'*')))
-        
-        
-        kfold = KFold(n_splits=9)
-
-        train = dict()
-        label  = dict()
-        i = 0
-        for train_index, test_index in kfold.split(images):
-            img_train,img_test = images[train_index], images[test_index]
-            i+=1
-            train.update([('train'+str(i),img_train),('test'+str(i),img_test)])
             
-        train_num, test_num = 'train'+str(fold_num), 'test'+str(fold_num)
-        
-    
-        if trainning == True:
-            self.images = train[train_num]
-            print(f"img_train:{len(img_train)} \t CV_train:{train_num} ")
-        else:
-            self.images = train[test_num]
-            print(f"img_test:{len(img_test)} \t CV_test:{test_num}")
+        if kfold == True:
+            #kfold (cross validation)
+            
+            kfold = KFold(n_splits=9)
 
-        self.L_transform = transforms.Compose([transforms.ToTensor(),
-                        transforms.Normalize([0.5], [0.5])])
+            train = dict()
+            label  = dict()
+            i = 0
+            for train_index, test_index in kfold.split(images):
+                img_train,img_test = images[train_index], images[test_index]
+                i+=1
+                train.update([('train'+str(i),img_train),('test'+str(i),img_test)])
+                
+            train_num, test_num = 'train'+str(fold_num), 'test'+str(fold_num)
+            
+        
+            if trainning == True:
+                self.images = train[train_num]
+                print(f"img_train:{len(img_train)} \t CV_train:{train_num} ")
+            else:
+                self.images = train[test_num]
+                print(f"img_test:{len(img_test)} \t CV_test:{test_num}")
+
+        elif kfold == False:
+            self.images = images
+        # self.L_transform = transforms.Compose([transforms.ToTensor(),
+        #                 transforms.Normalize([0.5], [0.5])])
+
+        self.L_transform = transforms.Lambda(lambda image: torch.tensor(np.array(image).astype(np.float32)))
+                
     def normal_pdf(self,length, sensitivity):
         return np.exp(-sensitivity * (np.arange(length) - length / 2)**2)
 
@@ -148,20 +154,39 @@ class mydataset(Dataset):
     def __getitem__(self,index):
 
         image = skimage.io.imread(self.images[index])
-        mask  = self.cartesian_mask((1,len(image[:]),len(image[:])),self.size,sample_n=8)[0]
+        mask  = self.cartesian_mask((1,len(image[:]),len(image[:])),self.size,sample_n=5)[0]
 
         image = image.astype(np.uint8)
         #make imaginary channel & real channel 
-        image = self.L_transform(image)[0]
+        # image = self.L_transform(image)[0]
+        image=cvt2tanh(image)
+        
+        
+        if self.self_supervised == True: 
+            mask2  = self.cartesian_mask((1,len(image[:]),len(image[:])),2,sample_n=5)[0]
+            mask2 = np.stack((mask2, np.zeros_like(mask2)), axis=0)
+            mask2 = torch.tensor(np.array(mask2))
+
+        # print(image.shape,mask.shape)
         image = np.stack((image, np.zeros_like(image)), axis=0)
         mask_s = np.stack((mask, np.zeros_like(mask)), axis=0)
-        
+        # print(image.shape,mask_s.shape)
         real_images = np.array(image)
         mask_image = np.array(mask_s)
         # img=cvt2tanh(real_images)
+
+        img = self.L_transform(real_images)
+        mas = torch.tensor(np.array(mask_image))
+
+        
+        # img = real_images
+        # mas = mask_image
         
         
-        img = real_images
-        mas = mask_image
+        # print(real)
+        # print(img.shape,mas.shape)
         # print(real_images.shape,img.max())
-        return img, mas
+        if self.self_supervised == True:
+            return img, mas, mask2 
+        else : 
+            return img, mas

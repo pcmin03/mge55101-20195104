@@ -68,7 +68,7 @@ class main:
             self.gen = reconstruction_efficientunet().to(self.device)
             print('----------discriminator---------')
             self.dis = classification_discrim().to(self.device)
-            self.batch_size=13
+            self.batch_size=10
         elif self.model =='pyramid_unet':
             print('----------generator---------')
             self.gen = pyramid_unet().to(self.device)

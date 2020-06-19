@@ -36,3 +36,18 @@ class WGANLoss(nn.Module):
 
     def loss_gen(self, outs_disc_fake):
         return -1 * outs_disc_fake.mean()
+
+class create_perceptual_loss(nn.Module):
+    def __init__(self, vgg_loss,loss):
+        super(create_perceptual_loss, self).__init__()
+
+        self.vgg_loss = vgg_loss
+        self.loss = loss
+    def forward(self,input_,predict):
+        input_features = self.vgg_loss(input_)
+        predict_features = self.vgg_loss(predict)
+        loss_value = 0
+        for i in range(int(len(predict_features))):
+            loss_value += self.loss(input_features[i],predict_features[i])
+        return loss_value
+
