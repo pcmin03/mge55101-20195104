@@ -5,6 +5,7 @@ import math
 import cv2
 import numpy as np
 import torch
+import skimage
 class recon_matrix(object):
 
 #################################################################
@@ -85,11 +86,16 @@ class recon_matrix(object):
     def psnr(self,img1,img2,max):
         """Peak Signal to Noise Ratio
         img1 and img2 have range [0, 255]"""
-
+        
         mse = torch.mean((img1 - img2) ** 2)
-        return 20 * torch.log10(max / torch.sqrt(mse))
+        return 20 * torch.log10(max / torch.sqrt(mse)).cpu().numpy()
 
-
+    def ssim(self,img1,img2,max):
+        
+        img1 =img1[0,0].cpu().numpy() 
+        # print(img1.shape)
+        img2 = img2[0,0].cpu().numpy()
+        return skimage.measure.compare_ssim(img1,img2,data_range=float(max))
 # class SSIM:
 #     """Structure Similarity
 #     img1, img2: [0, 255]"""

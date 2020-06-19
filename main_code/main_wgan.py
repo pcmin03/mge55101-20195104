@@ -24,7 +24,7 @@ class main:
 
     #initilize Generaotor and discriminator
     def __init__(self,args):
-        self.model = 'patchgan'
+        self.model = 'effcientunet'
 # ../../save_model/paraell_2.5_attention_new_data_patchdiscrim_patchgan3/
 # paraell_2.5_attention_new_data_effcientunet3
         # self.path = './unet_denseunet_wgangp/10percent_cascade_boost_test'
@@ -39,7 +39,7 @@ class main:
         self.knum = args.knum
         deleteall = False
         self.validnum = 10
-        self.perceptual_loss = True
+        self.perceptual_loss = False
 
         ############################################new dataset####################################
         self.path = '../../save_model'
@@ -47,9 +47,12 @@ class main:
             print('----- Make_save_Dir-------------')
             os.makedirs(self.path)
             print(self.path)
-        # self.path += '/paraell_5_'+str(self.model)+str(self.knum)+'/'
+        # self.path += '/paraell_'+str(self.model)+str(self.knum)+'/'
         # self.path += '/paraell_'+str(self.sampling)+'_selfsupervised_attention_new_data_patchdiscrim_'+str(self.model)+str(self.knum)+'/'
-        self.path += '/paraell_'+str(self.sampling)+'_perceptual_attention_new_data_patchdiscrim_'+str(self.model)+str(self.knum)+'/'
+        # self.path += '/paraell_'+str(self.sampling)+'_attention_new_data_'+str(self.model)+str(self.knum)+'/'
+        # self.path += '/paraell_'+str(self.sampling)+'_attention_new_data_'+str(self.model)+str(self.knum)+'/'
+        self.path += '/paraell_'+str(self.sampling)+'_attention_new_data_patchdiscrim_'+str(self.model)+str(self.knum)+'/'
+        # paraell_4.0_perceptual_attention_new_data_patchdiscrim_patchgan3
         # self.path += '/paraell_5_attention_new_data_'+str(self.model)+str(self.knum)+'/'
         
         # self.path += '/paraell_5_'+str(self.model)+str(self.knum)+'/'
@@ -429,17 +432,17 @@ class main:
 
                         # re_prediction = (re_prediction * 255.0).cpu().detach().numpy()
                         # re_pred = (re_pred * 255.0).cpu().detach().numpy()
-                    
-                        prediction = cvt2imag(prediction).cpu().detach().numpy()
-                        pred = cvt2imag(pred).cpu().detach().numpy()
-                        inputa= cvt2imag(inputa).cpu().detach().numpy()
-                        re_prediction = cvt2imag(re_prediction).cpu().detach().numpy()
-                        re_pred = cvt2imag(re_pred).cpu().detach().numpy()
                         
-                        val_final_psnr = evalution.PSNR(prediction,inputa,255.0)
-                        val_recon_psnr = evalution.PSNR(pred,inputa,255.0)
-                        val_final_ssim = evalution.PSNR(re_prediction,inputa,255.0)
-                        val_recon_ssim = evalution.PSNR(re_pred,inputa,255.0)
+                        prediction = cvt2imag(prediction[0,0]).cpu().detach().numpy()
+                        pred = cvt2imag(pred[0,0]).cpu().detach().numpy()
+                        inputa= cvt2imag(inputa[0,0]).cpu().detach().numpy()
+                        re_prediction = cvt2imag(re_prediction[0,0]).cpu().detach().numpy()
+                        re_pred = cvt2imag(re_pred[0,0]).cpu().detach().numpy()
+                        
+                        val_final_psnr = evalution.psnr(prediction,inputa,255.0)
+                        val_recon_psnr = evalution.psnr(pred,inputa,255.0)
+                        val_final_ssim = evalution.psnr(re_prediction,inputa,255.0)
+                        val_recon_ssim = evalution.psnr(re_pred,inputa,255.0)
 
             if phase == 'train':
                 i=float(i)     
@@ -544,7 +547,7 @@ class main:
                         self.path+str(name)+"_save_models{}.pth")
 
     def load_save_model(self):
-        
+        # bestsave_model_save_models{}.pth
         checkpoint = torch.load(self.path+"/last_save_models{}.pth")
         self.gen.load_state_dict(checkpoint['gen_model'])
         self.regen.load_state_dict(checkpoint['regen_model'])
@@ -560,11 +563,11 @@ class main:
         t_imageDir = '../../mri_dataset/real_final_test/'
         t_labelDir = '../../mri_dataset/real_final_test/'
         
-        Dataset  = { 'valid': DataLoader(mydataset(self.imageDir,2.2,kfold=False),
+        Dataset  = { 'valid': DataLoader(mydataset(self.imageDir,self.sampling,kfold=False),
                                 batch_size = 1,
                                 shuffle = False, 
                                 num_workers = 8),
-                    'test': DataLoader(mydataset(t_imageDir,2.2,kfold=False),
+                    'test': DataLoader(mydataset(t_imageDir,self.sampling,kfold=False),
                                 batch_size = 1,
                                 shuffle = False, 
                                 num_workers = 8)}
@@ -621,25 +624,54 @@ class main:
                 # re_prediction = (re_prediction * 255.0).cpu().detach().numpy()
                 # re_pred = (re_pred * 255.0).cpu().detach().numpy()
                 
-                prediction = cvt2imag(prediction).cpu().detach().numpy()
-                pred = cvt2imag(pred).cpu().detach().numpy()
-                inputa= cvt2imag(inputa).cpu().detach().numpy()
-                re_prediction = cvt2imag(re_prediction).cpu().detach().numpy()
-                re_pred = cvt2imag(re_pred).cpu().detach().numpy()
-                
-                test_final_psnr = test_evalution.PSNR(prediction,inputa,255.0)
-                test_recon_psnr = test_evalution.PSNR(pred,inputa,255.0)
-                test_final_ssim = test_evalution.PSNR(re_prediction,inputa,255.0)
-                test_recon_ssim = test_evalution.PSNR(re_pred,inputa,255.0)
-                    
+                # prediction = cvt2imag(prediction).cpu().detach().numpy()
+                # pred = cvt2imag(pred).cpu().detach().numpy()
+                # inputa= cvt2imag(inputa).cpu().detach().numpy()
+                # re_prediction = cvt2imag(re_prediction).cpu().detach().numpy()
+                # re_pred = cvt2imag(re_pred).cpu().detach().numpy()
+                # # print(zeroimg.max())
+                # zeroimg_ = cvt2imag(zeroimg).cpu().detach().numpy()
+                prediction = (prediction[:,0:1])
+                pred = (pred[:,0:1])
+                inputa= (inputa[:,0:1])
+                re_prediction = (re_prediction[:,0:1])
+                re_pred = (re_pred[:,0:1])
+                # print(zeroimg.max())
+                zeroimg_ = (zeroimg[:,0:1])
+                # print(zeroimg_.max(),inputa.max())
+                test_final_psnr = test_evalution.psnr(prediction,inputa,1.0)
+                test_recon_psnr = test_evalution.psnr(pred,inputa,1.0)
+                test_final_ssim = test_evalution.psnr(re_prediction,inputa,1.0)
+                test_recon_ssim = test_evalution.psnr(re_pred,inputa,1.0)
+                zero_recon_psnr = test_evalution.psnr(zeroimg_,inputa,1.0)
         
+
+                midterm_ssim = test_evalution.ssim(pred,inputa,1.0)
+                finalterm_ssim = test_evalution.ssim(re_pred,inputa,1.0)
+                zeroterm_ssim = test_evalution.ssim(zeroimg_,inputa,1.0)
+        
+
                 # i=float(i)
-                evalutiondict = {'val_final_psnr':test_final_psnr,'val_recon_psnr':test_recon_psnr,
-                                    'val_final_ssim':test_final_ssim,'val_recon_ssim':test_recon_ssim}
-                
+                evalutiondict = {'val_recon_psnr':test_recon_psnr,
+                                    'val_recon_ssim':test_recon_ssim,
+                                'zero_recon_psnr':zero_recon_psnr}
+
+                                
+                evalutiondict.update({'midterm_ssim':midterm_ssim,
+                                    'finalterm_ssim':finalterm_ssim,
+                                'zeroterm_ssim':zeroterm_ssim})
+                                
                 # class_list=['recon_psnr','final_psnr','recon_ssim','final_ssim']
                 class_list,evalutiondict = self.logger.convert_to_list(evalutiondict)
                 new_evalutaion.append(list(evalutiondict))
+
+                prediction = prediction.cpu().detach().numpy()
+                pred = pred.cpu().detach().numpy()
+                inputa= inputa.cpu().detach().numpy()
+                re_prediction = re_prediction.cpu().detach().numpy()
+                re_pred = re_pred.cpu().detach().numpy()
+                # print(zeroimg.max())
+                zeroimg_ = zeroimg.cpu().detach().numpy()
 
                 total_image = {'recon_image':prediction,
                                 'final_image':pred,
@@ -650,9 +682,13 @@ class main:
                 total_image.update({'zero_image':zeroimg.cpu().numpy()})
                 self.re_normalize(total_image,255)
                 
-                recon_error_img = np.abs(total_image['input_image'] - total_image['recon_image'])
-                final_error_img = np.abs(total_image['input_image'] - total_image['final_image'])
-                zero_error_img = np.abs(total_image['input_image'] - total_image['zero_image'])
+                # recon_error_img = np.abs(total_image['input_image'] - total_image['recon_image'])
+                # final_error_img = np.abs(total_image['input_image'] - total_image['final_image'])
+                # zero_error_img = np.abs(total_image['input_image'] - total_image['zero_image'])
+
+                recon_error_img = total_image['input_image'] - total_image['final_image']
+                final_error_img = total_image['input_image'] - total_image['re_pred']
+                zero_error_img = total_image['input_image'] - total_image['zero_image']
 
                 total_image.update({'recon_error_img':recon_error_img,
                                     'final_error_img':final_error_img,
@@ -673,5 +709,5 @@ parser.add_argument('--sampling',default=2.2, help='set sampling mask 100/(value
 args = parser.parse_args()
 
 reconstruction = main(args)
-reconstruction.trainning()
+# reconstruction.trainning()
 reconstruction.testing()

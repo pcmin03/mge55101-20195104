@@ -91,7 +91,7 @@ class reconstruction_resunet(nn.Module):
         # se_resnet101
         # resnet101
         # self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='sigmoid',encoder_weights=None)
-        self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='arctan',encoder_weights=None)
+        self.model = smp.Unet('se_resnet50',in_channels=in_channels,classes=classes,activation='arctan',encoder_weights=None)
         # self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='nn.Tanh(),encoder_weights=None)
     def forward(self,x):
         return self.model(x)
@@ -103,7 +103,7 @@ class reconstruction_deeplab(nn.Module):
         # resnet101
         # arctan
         # self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='sigmoid',encoder_weights=None)
-        self.model = smp.DeepLabV3('se_resnet101',in_channels=in_channels,classes=classes,activation='arctan',encoder_weights=None)
+        self.model = smp.DeepLabV3('se_resnet50',in_channels=in_channels,classes=classes,activation='arctan',encoder_weights=None)
         # self.model = smp.Unet('se_resnet101',in_channels=in_channels,classes=classes,activation='nn.Tanh(),encoder_weights=None)
     def forward(self,x):
         return self.model(x)
